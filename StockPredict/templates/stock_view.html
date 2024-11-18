@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="stock-view-container">
+    <h2>Stock Viewing</h2>
+    <label for="ticker">Enter Ticker Symbol:</label>
+    <input type="text" id="ticker" placeholder="e.g., AAPL">
+    <button onclick="addGraph()">Add Graph</button>
+    <p id="price-output"></p>
+
+    <div id="graphs-container">
+        <!-- Dynamically added graphs will appear here -->
+    </div>
+</div>
+
+<hr>
+
+<div class="prediction-section card">
+    <h3 class="card-title">Stock Prediction</h3>
+    <label for="predict-ticker">Enter Ticker:</label>
+    <input type="text" id="predict-ticker" placeholder="e.g., AAPL" class="input-field">
+    <button onclick="fetchPrediction()" class="primary-button">Predict</button>
+    <p id="prediction-result" class="result-text"></p>
+</div>
+
+<script>
+    let graphs = {}; // Store graph instances and their data by ticker
+    console.log("Page Loaded. Starting fresh with no saved graphs.");
+
+    function addGraph(ticker = null, timeFrame = '1mo') {
+        if (!ticker) {
+            ticker = document.getElementById('ticker').value.trim();
+        }
+
+        if (!ticker) {
+            document.getElementById('price-output').innerText = "Please enter a valid ticker symbol.";
+            return;
+        }
+
+        if (graphs[ticker]) {
+            document.getElementById('price-output').innerText = `${ticker} is already displayed.`;
+            return;
+        }
+
+        fetch(`/stock/history?ticker=${ticker}&period=${timeFrame}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('price-output').innerText = `Error fetching data for ${ticker}: ${data.error}`;
+                } else {
+                    createGraph(ticker, data.history, timeFrame);
+                }
+            })
+            .catch(() => {
+                document.getElementById('price-output').innerText = `Error fetching data for ${ticker}.`;
+            });
+    }
+
+    function createGraph(ticker, history, initialPeriod) {
+        const graphContainer = document.createElement('div');
+        graphContainer.className = "graph-container";
+        graphContainer.id = `graph-container-${ticker}`;
+
+        const title = document.createElement('h3');
+        title.innerText = `${ticker} Stock Price History`;
+
+        const timeSelector = document.createElement('select');
+        timeSelector.className = "time-selector";
+        timeSelector.id = `time-selector-${ticker}`;
+        timeSelector.onchange = () => updateGraph(ticker);
+
+        ["1d", "5d", "1mo", "3mo", "6mo", "1y"].forEach(period => {
+            const option = document.createElement('option');
+            option.value = period;
+            option.text = period;
+            if (period === initialPeriod) {
+                option.selected = true;
+            }
+            timeSelector.appendChild(option);
+        });
+
+        const removeButton = document.createElement('button');
+        removeButton.innerText = "Remove";
+        removeButton.className = "remove-graph-button";
+        removeButton.onclick = () => removeGraph(ticker);
+
+        const canvas = document.createElement('canvas');
+        canvas.id = `chart-${ticker}`;
+        canvas.width = 800;
+        canvas.height = 400;
+
+        graphContainer.appendChild(title);
+        graphContainer.appendChild(timeSelector);
+        graphContainer.appendChild(removeButton);
+        graphContainer.appendChild(canvas);
+        document.getElementById('graphs-container').appendChild(graphContainer);
+
+        const ctx = canvas.getContext('2d');
+        const dates = history.map(item => new Date(item.Date).toLocaleDateString());
+        const prices = history.map(item => item.Close);
+
+        graphs[ticker] = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: `${ticker} (Close)`,
+                    data: prices,
+                    borderColor: `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 1)`,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Price (USD)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function removeGraph(ticker) {
+        if (graphs[ticker]) {
+            graphs[ticker].destroy();
+            delete graphs[ticker];
+            const graphContainer = document.getElementById(`graph-container-${ticker}`);
+            if (graphContainer) {
+                graphContainer.remove();
+            }
+            document.getElementById('price-output').innerText = `${ticker} graph removed.`;
+        }
+    }
+
+    function updateGraph(ticker) {
+        const timeFrame = document.getElementById(`time-selector-${ticker}`).value;
+
+        fetch(`/stock/history?ticker=${ticker}&period=${timeFrame}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('price-output').innerText = `Error updating data for ${ticker}: ${data.error}`;
+                } else {
+                    const dates = data.history.map(item => new Date(item.Date).toLocaleDateString());
+                    const prices = data.history.map(item => item.Close);
+
+                    graphs[ticker].data.labels = dates;
+                    graphs[ticker].data.datasets[0].data = prices;
+                    graphs[ticker].update();
+                }
+            })
+            .catch(() => {
+                document.getElementById('price-output').innerText = `Error updating data for ${ticker}.`;
+            });
+    }
+
+    function fetchPrediction() {
+        const ticker = document.getElementById('predict-ticker').value.trim().toUpperCase();
+        if (!ticker) {
+            document.getElementById('prediction-result').innerText = "Please enter a valid ticker symbol.";
+            return;
+        }
+
+        fetch(`/stock/predict?ticker=${ticker}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('prediction-result').innerText = `Error: ${data.error}`;
+                } else {
+                    document.getElementById('prediction-result').innerText = `Predicted Price for ${ticker}: $${data.predicted_price.toFixed(2)}`;
+                }
+            })
+            .catch(() => {
+                document.getElementById('prediction-result').innerText = "Prediction failed.";
+            });
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}

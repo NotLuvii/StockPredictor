@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='shared.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Stock Viewer</h1>
+        <nav>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/stock/">Stock Viewing</a></li>
+                <li><a href="/portfolio/">Portfolio Management</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main class="home-main">
+        <section class="welcome-section">
+            <h2>Welcome to Stock Viewing</h2>
+            <p>A project for tracking stock performance, analyzing trends, and managing investment portfolios efficiently.</p>
+        </section>
+
+        <section class="features-section">
+            <h3>Features:</h3>
+            <ul>
+                <li>📈 Real-Time Stock Price Tracking: Instantly view up-to-date prices for your favorite stocks.</li>
+                <li>📊 Historical Data Analysis: Analyze stock trends with interactive charts for multiple time frames.</li>
+                <li>📋 Portfolio Management: Add stocks, track quantities, and view the total worth of your investments.</li>
+            </ul>
+        </section>
+
+        <section class="how-to-section">
+            <h3>How to Use:</h3>
+            <ol>
+                <li>Navigate to <b>Stock Viewing</b> to enter a ticker symbol and view its historical price chart.</li>
+                <li>Go to <b>Portfolio Management</b> to add stocks, specify quantities, and track your investments.</li>
+                <li>Switch between time frames to analyze historical trends for better investment decisions.</li>
+            </ol>
+        </section>
+        {% block content %}
+        {% endblock %}
+    </main>
+    <footer>
+        <p>Stock Viewer App.</p>
+    </footer>
+</body>
+</html>

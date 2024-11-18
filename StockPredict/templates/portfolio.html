@@ -1,0 +1,295 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="portfolio-container">
+    <h2>Portfolio Management</h2>
+    <form id="portfolio-form">
+        <label for="stock">Stock Ticker:</label>
+        <input type="text" id="stock" name="stock" placeholder="e.g., AAPL" oninput="fetchPrice()">
+        <label for="quantity">Quantity:</label>
+        <input type="number" id="quantity" name="quantity" placeholder="e.g., 10">
+        <label for="price">Purchase Price (USD):</label>
+        <input type="text" id="price" name="price" readonly>
+        <button type="button" onclick="addStock()">Add to Portfolio</button>
+    </form>
+
+    <div id="portfolio-output">
+        <h3>Your Portfolio</h3>
+        <table class="portfolio-table">
+            <thead>
+                <tr>
+                    <th>Stock</th>
+                    <th>Quantity</th>
+                    <th>Purchase Price</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="portfolio-table-body">
+                {% for item in portfolio %}
+                <tr>
+                    <td>{{ item.stock }}</td>
+                    <td>
+                        <input type="number" class="edit-quantity" value="{{ item.quantity }}" 
+                               onchange="updateQuantity('{{ item.stock }}', this.value)">
+                    </td>
+                    <td>${{ "%.2f" | format(item.price) }}</td>
+                    <td>
+                        <button class="remove-button" onclick="removeStock('{{ item.stock }}')">Remove</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+
+    <h3>Total Portfolio Worth: ${{ "%.2f" | format(total_worth) }}</h3>
+
+    <!-- Currency Conversion -->
+    <div class="currency-conversion-container">
+        <h3>Currency Conversion</h3>
+        <div class="conversion-form">
+            <label for="convert-to">Convert Total Worth to:</label>
+            <select id="convert-to" onchange="convertCurrency()">
+                <option value="USD">USD - United States Dollar</option>
+                <option value="EUR">EUR - Euro</option>
+                <option value="GBP">GBP - British Pound</option>
+                <option value="INR">INR - Indian Rupee</option>
+                <option value="CAD">CAD - Canadian Dollar</option>
+                <option value="AUD">AUD - Australian Dollar</option>
+                <option value="JPY">JPY - Japanese Yen</option>
+                <option value="CHF">CHF - Swiss Franc</option>
+                <option value="CNY">CNY - Chinese Yuan</option>
+                <option value="NZD">NZD - New Zealand Dollar</option>
+            </select>
+        </div>
+        <div id="conversion-result" class="conversion-result-box">
+            Converted Total Worth: -- 
+        </div>
+    </div>
+
+    <!-- Risk Analysis -->
+    <div class="risk-analysis-container">
+        <h3>Risk Analysis</h3>
+        <div class="risk-analysis-content">
+            <button type="button" class="analyze-button" onclick="runRiskAnalysis()">Run Risk Analysis</button>
+            <div id="risk-results">
+                <div class="metric">
+                    <strong>Volatility:</strong>
+                    <span id="risk-volatility">N/A</span>
+                    <span class="tooltip" data-tooltip="Volatility measures the fluctuation in portfolio value over time. A higher volatility indicates a higher level of risk.">
+                        (i)
+                    </span>
+                </div>
+                <div class="metric">
+                    <strong>Sharpe Ratio:</strong>
+                    <span id="risk-sharpe-ratio">N/A</span>
+                    <span class="tooltip" data-tooltip="The Sharpe Ratio measures risk-adjusted returns. A higher value indicates better returns per unit of risk.">
+                        (i)
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="predictions-container card">
+        <h3 class="card-title">Predictions for Portfolio</h3>
+        <button onclick="fetchPortfolioPredictions()" class="primary-button">Get Predictions</button>
+        <div id="portfolio-predictions-output" class="predictions-output"></div>
+    </div>
+    
+</div>
+
+<script>
+    const totalWorth = JSON.parse('{{ total_worth | tojson }}');
+
+    window.onload = function () {
+        fetch('/portfolio/get_conversion_state')
+            .then(response => response.json())
+            .then(data => {
+                if (data.currency && data.converted_amount) {
+                    document.getElementById('convert-to').value = data.currency;
+                    document.getElementById('conversion-result').innerText =
+                        `Converted Total Worth: ${data.converted_amount.toFixed(2)} ${data.currency}`;
+                }
+            })
+            .catch(err => console.error("Error fetching currency state:", err));
+
+        fetch('/portfolio/get_risk_state')
+            .then(response => response.json())
+            .then(data => {
+                if (data.volatility && data.sharpe_ratio) {
+                    document.getElementById('risk-volatility').innerText = `Volatility: ${data.volatility}%`;
+                    document.getElementById('risk-sharpe-ratio').innerText = `Sharpe Ratio: ${data.sharpe_ratio}`;
+                }
+            })
+            .catch(err => console.error("Error fetching risk state:", err));
+    };
+
+    function fetchPrice() {
+        const ticker = document.getElementById('stock').value.toUpperCase();
+        if (!ticker) return;
+
+        fetch(`/portfolio/price?ticker=${ticker}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('price').value = "N/A";
+                } else {
+                    document.getElementById('price').value = data.price.toFixed(2);
+                }
+            })
+            .catch(() => {
+                document.getElementById('price').value = "N/A";
+            });
+    }
+
+    function addStock() {
+        const stock = document.getElementById('stock').value.toUpperCase();
+        const quantity = parseInt(document.getElementById('quantity').value);
+        const price = parseFloat(document.getElementById('price').value);
+
+        if (!stock || isNaN(quantity) || isNaN(price)) {
+            alert('Please fill in all fields.');
+            return;
+        }
+
+        fetch('/portfolio/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stock, quantity, price })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    location.reload();
+                }
+            })
+            .catch(() => {
+                alert('Error adding stock to portfolio.');
+            });
+    }
+
+    function updateQuantity(stock, quantity) {
+        if (isNaN(quantity) || quantity <= 0) {
+            alert('Quantity must be a positive number.');
+            return;
+        }
+
+        fetch('/portfolio/edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stock, quantity: parseInt(quantity) })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert('Stock quantity updated successfully.');
+                    location.reload(); // Reload to update the portfolio
+                }
+            })
+            .catch(() => {
+                alert('Error updating stock quantity.');
+            });
+    }
+
+    function removeStock(stock) {
+        if (!confirm(`Are you sure you want to remove ${stock}?`)) {
+            return;
+        }
+
+        fetch('/portfolio/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stock })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert('Stock removed successfully.');
+                    location.reload(); // Reload to update the portfolio
+                }
+            })
+            .catch(() => {
+                alert('Error removing stock.');
+            });
+    }
+
+    function convertCurrency() {
+        const currency = document.getElementById('convert-to').value;
+
+        if (isNaN(totalWorth) || totalWorth <= 0) {
+            document.getElementById('conversion-result').innerText = "Invalid total worth.";
+            return;
+        }
+
+        fetch(`/portfolio/convert_currency?amount=${totalWorth}&from_currency=USD&to_currency=${currency}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.converted_amount) {
+                    document.getElementById('conversion-result').innerText =
+                        `Converted Total Worth: ${data.converted_amount.toFixed(2)} ${currency}`;
+
+                    // Save the state to the server
+                    fetch('/portfolio/set_conversion_state', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            currency,
+                            converted_amount: data.converted_amount
+                        })
+                    }).then(() => console.log('Currency state saved.'));
+                } else {
+                    document.getElementById('conversion-result').innerText = "Conversion failed.";
+                }
+            })
+            .catch(err => {
+                console.error("Conversion Error:", err);
+                document.getElementById('conversion-result').innerText = "Conversion failed.";
+            });
+    }
+
+
+
+    function runRiskAnalysis() {
+        fetch('/portfolio/risk_analysis')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('risk-volatility').innerText = `Volatility: ${data.volatility}%`;
+                document.getElementById('risk-sharpe-ratio').innerText = `Sharpe Ratio: ${data.sharpe_ratio}`;
+
+                // Save the state to the server
+                fetch('/portfolio/set_risk_state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        volatility: data.volatility,
+                        sharpe_ratio: data.sharpe_ratio
+                    })
+                }).then(() => console.log('Risk state saved.'));
+            })
+            .catch(() => {
+                document.getElementById('risk-volatility').innerText = "Risk analysis failed.";
+                document.getElementById('risk-sharpe-ratio').innerText = "";
+            });         
+    }
+
+    function fetchPortfolioPredictions() {
+        fetch('/portfolio/predict_portfolio')
+            .then(response => response.json())
+            .then(data => {
+                const output = document.getElementById('portfolio-predictions-output');
+                output.innerHTML = data.predictions
+                    .map(p => `<p>${p.stock}: $${p.predicted_price.toFixed(2)}</p>`)
+                    .join('');
+            })
+            .catch(() => alert('Error fetching portfolio predictions.'));
+    }
+</script>
+{% endblock %}
